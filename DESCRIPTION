@@ -1,0 +1,63 @@
+Algorithm: postMUT
+
+Title: postMUT (posterior probability of a given mutation being deleterious) 
+  combines functional predictions from SIFT, PolyPhen-2 and Xvar
+
+Description: 
+  postMUT is a tool written in Perl and R which combines the functional 
+  predictions from the in silico algorithms SIFT, PolyPhen-2 and Xvar 
+  to provide a POSTerior probability of a given MUTation being deleterious. 
+  This tool requires the installation of the pre-computed predictions 
+  from the in silico algorithms.  This tool will extract all missense 
+  mutations from a given VCF file, extract the functional predictions 
+  from SIFT, PolyPhen-2 and Xvar, and compute the postMUT posterior 
+  probability for each mutation that has a prediction from all 
+  three in silico algorithms. 
+
+Version: 0.1
+
+Date: 2014-04-06
+
+Author: Stephanie Hicks, Sharon Plon, Marek Kimmel
+
+Maintainer: Stephanie Hicks <shicks@jimmy.harvard.edu>
+
+Software Dependencies: 
+  R
+  R packages: ggplot2, parallel
+  perl (v5.12.4 or higher; can check using 'perl -v' in bash terminal for Mac OS X)
+  perl modules: File::Slurp, DBI, DBD::SQLite 
+	- can check if installed using 'perldoc -l File::Slurp' in bash terminal
+  vcftools (v0.1.9 or higher) (http://vcftools.sourceforge.net)
+  Basic bash commands (e.g. wget, grep, cut) 
+	- e.g. can be obtained by installing Xcode for Mac OS X
+Database dependencies: 
+  SIFT Human Database (release 63) (http://sift.jcvi.org)
+  PolyPhen-2 Whole human exome sequence space annotations dataset (polyphen-2.2.2-whess-2011_12)
+  Xvar (MutationAssessor) pre-computed scores for all missense variants in the human reference genome (hg19)
+
+  *** Note: It is possible to skip the downloading the three databases and just 
+            obtain the functional predictions individually from the websites directly.  
+            If the predictions are taken from their respective websites, Step 3 
+	    (03_collapse.sh and 03_collapse_tumor.sh) the pipeline below will no longer 
+	    work.  The perl script which can be found 'scripts/collapse.pl' needs to be 
+	    updated to extract the information from each individual output file.  In 
+	    addition, Step 4 (04_postMUT.sh and 'scripts/postMUT.R') will also need to be adjusted 
+	    accordingly. ***
+
+Input files: 
+  The input file required is a VCF (Variant Call Format) e.g. 'input.vcf'. Place the 
+  VCF file in the folder 'input_files/vcf_files/'. These files should have have been 
+  annotated for genetic effect (e.g. missense, nonsense, etc) using a tool such as 
+  SNPEffect (http://snpeff.sourceforge.net). Each VCF file should represent the set 
+  of variants called for one individual.  If the VCF file contains multiple individuals, 
+  you must separate 'input.vcf' into separate files.  For example, this can be done in 
+  bash using the following: 
+
+	cd input_files/vcf_files/
+	for SAMPLE in `grep -m 1 '#CHROM' input.vcf | cut -f 10- `
+	do
+	  vcf-subset -c $SAMPLE input.vcf -e > $SAMPLE.vcf
+	done
+
+License: Artistic-2.0

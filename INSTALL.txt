@@ -1,0 +1,136 @@
+Algorithm: 
+  postMUT (posterior probability of a given mutation being deleterious) 
+  combines functional predictions from SIFT, PolyPhen-2 and Xvar
+
+---------------------------------------------------------------------
+Installing database dependencies: SIFT, PolyPhen-2 and Xvar
+---------------------------------------------------------------------
+=== SIFT ===
+File: download 24 (22 plus X, Y) SQLite databases via wget (see below)
+Compressed files size: 7.29GB
+Uncompressed files size: 50 GB
+	cd pred-databases/SIFT
+	wget ftp://ftp.jcvi.org/pub/data/sift/Human_db_37_ensembl_63/*
+	gunzip -d *.gz
+	perl extract-SIFT-preds.pl
+	rm *.sqlite
+
+=== PolyPhen-2 ===
+File: polyphen-2.2.2-whess-2011_12.tab.tar.bz2
+Compressed file size: 3.4GB
+Uncompressed file size: 88GB (135GB at the largest)
+	cd pred-databases/PPH2
+	wget ftp://genetics.bwh.harvard.edu/pph2/whess//polyphen-2.2.2-whess-2011_12.tab.tar.bz2
+	tar xjvf polyphen-2.2.2-whess-2011_12.tab.tar.bz2
+
+  *** Note: Run extract-PPH2-preds.sh to extract important information and separate into 
+	    22 (plus X, Y) chromosome files (will take 8-10 hours); Will extract to ~ 135GB ***
+
+	sh extract-PPH2-preds.sh
+	rm -r polyphen-2.2.2-whess-2011_12 # the last line will delete ~ 115GB
+
+=== Xvar ===
+File: MA.scores.hg19.tar.bz2
+Compressed file size: 640MB
+Uncompressed file size: 4.65GB
+	cd pred-databases/Xvar
+	wget http://getma.org/MA.scores.hg19.tar.bz2
+	tar xjvf MA.scores.hg19.tar.bz2
+
+
+
+---------------------------------------------------------------------
+Running postMUT:
+---------------------------------------------------------------------
+The scripts are split into multiple bash scripts so it's easy to debug if necessary. You 
+should be able to put them all together in one file if preferred. 
+
+	cd postMUT-0.0.1
+
+=== Step 1: === (ignore warnings)
+* Extract missense mutations from VCF files and separate into SIFT, PPH2 and Xvar input formats.  
+
+	sh 01_cleanandsplit.sh
+
+* If the samples are matched Normal and Tumor pairs, use: 
+
+	sh 01_cleanandsplit_tumor.sh
+
+  *** Note: If the matched Normal and Tumor pairs are used, each of the normal and tumor 
+	    file names need to be individually added to the bash script. ***
+
+
+=== Step 2 ===
+* Extract SIFT, PPH2 and Xvar functional predictions. 
+* The input file are found in 'input_files/SIFT_input'.
+
+	sh 02_func-preds.sh # (~ 45 mins / VCF file) 
+
+  *** Note: Afterwards, the predictions can be found in 'output_files' 
+	    (e.g. 'output_files/PPH2_output') ***
+
+
+=== Step 3 === (ignore warnings)
+* Combine all the predictions from SIFT, PPH2 and Xvar to use as input into the postMUT tool. 
+* All files are saved in 'input_files/postMUT_input/filename-postMUT-in.txt'
+	
+	sh 03_collapse.sh
+
+* If the samples are matched Normal and Tumor pairs, use: 
+
+	sh 03_collapse_tumor.sh
+
+  *** Note: Afterwards, IF the samples are matched Normal and Tumor pairs, filter for 'Germline', 
+	    'Somatic', 'LOH' or 'OnlyNormal' in preparation for postMUT scripts. ***
+
+	cd input_files/postMUT_input
+	egrep 'CHROM|Somatic' <tumor-filename>-postMUT-in.txt > <tumor-filename>-Somatic-postMUT-in.txt
+	egrep 'CHROM|Germline' <tumor-filename>-postMUT-in.txt > <tumor-filename>-Germline-postMUT-in.txt
+	egrep 'CHROM|LOH' <tumor-filename>-postMUT-in.txt > <tumor-filename>-LOH-postMUT-in.txt
+	egrep 'CHROM|OnlyNormal' <tumor-filename>-postMUT-in.txt > <tumor-filename>-OnlyNormal-postMUT-in.txt
+
+
+=== Step 4 ===
+* Run postMUT using R script to calculate posterior probabilities of mutation being deleterious
+
+*** Note: Before running script, a few parameters must be manually set.  Open 'scripts/postMUT_tumor.R' 
+	   and 'scripts/postMUT.R'.   postMUT.R and postMUT_tumor.R will estimate the parameters in the 
+	   postMUT (simple) and postMUT models in the following way: 
+
+	for(j in 1:number of simulations){
+		for(i in 1:number of random starts){ 
+			1) Initialize parameters in the postMUT (simple) and postMUT models at a random set of values.  
+			2) Estimate the parameters in the postMUT (simple) and postMUT models using EM algorithm. 
+		}
+		1) Parameter estimates with the highest likelihood are recorded across all i random starts.
+	}
+	1) Average parameter estimates from the postMUT (simple) and postMUT models across all j simulations. 
+
+* Here is a description of the four parameters which can be manually changed in the .R files found in 'scripts/*.R' 
+
+	############################################################################
+	## Set parameters for estimation
+	##
+	## N.cores = Number of cores available to speed up parameter estimation (e.g. 1, 2, 4, 8) [Default = 4]
+	## total.sims = Total number of simulations to run (must be divisible by N.cores) [Default = 100]
+	## n.random.start.xy = Number of random starts in postMUT (simple) [Default = 10]
+	## n.random.start.xyz = Number of random starts in postMUT [Default = 100]
+	############################################################################
+
+* Once the parameters have been set, run the following in the bash terminal 
+
+	sh 04_postMUT.sh
+
+* If the samples are matched Normal and Tumor pairs, use: 
+
+	sh 04_postMUT_tumor.sh
+
+*** Note: Parameter estimates (i.e. sensitivity and specificity) and posterior 
+	  probabilities from the postMUT (simple) and postMUT models are saved in 
+	   'output_files/postMUT_output'. The 'par_est' file contains all the parameter 
+	  estimates. 'plots' contains the plots of sensitivity and specificity for each 
+	  in silico method. 'post' contains the posterior probabilities for the postMUT 
+	  (simple) and postMUT models for each mutation which had a functional prediction 
+	  from all three methods.  'post_est' contains the posterior probabilities 
+	  depending on the disjoint categories. ***
+

@@ -1,0 +1,57 @@
+*** A brief example is provided of how postMUT works. The VCF files used 
+in this example are taken from Marek Kimmel's collaboration with Seth 
+Corey.  Please do not use this data without permission from Marek Kimmel. ***
+
+=== Step 1 ===
+* Two matched Normal and Tumor samples in .vcf.gz format can be found 
+  in 'input_files/vcf_files'. Uncompress the files. 
+  
+	cd input_files/vcf_files
+	gzip -d Normal-snpeffect_Cleaveland038_normal_recal.raw.vcf.gz
+	gzip -d Tumor-snpeffect_Cleaveland038_tumor_recal.raw.vcf.gz
+
+* Open 01_cleanandsplit_tumor.sh. Note I've manually added the <normal-filename> 
+  and <tumor-filename> to be able create labels ('Somatic', 'Germline', 
+  'LOH', 'OnlyNormal' for each mutation.  
+
+	sh 01_cleanandsplit_tumor.sh
+
+=== Step 2 === 
+* After the databases (SIFT, PolyPhen-2, Xvar) have been installed: 
+
+	sh 02_func-preds.sh
+
+* Will take ~ 45 mins / VCF file
+* All predictions from the individual algorithms can be found in 'output_files'.
+
+
+=== Step 3 === 
+* Combine all the predictions from SIFT, PPH2 and Xvar to use as input into postMUT.
+
+	sh 03_collapse_tumor.sh
+
+* All files are saved in 'input_files/postMUT_input/filename-postMUT-in.txt'
+
+	cd input_files/postMUT_input
+	egrep 'CHROM|Somatic' Tumor-snpeffect_Cleaveland038_tumor_recal.raw-postMUT-in.txt > Tumor-Somatic-postMUT-in.txt
+
+
+=== Step 4 ===
+* Run postMUT using R script to calculate posterior probabilities of mutation being 
+  deleterious.
+
+	sh 04_postMUT_tumor.sh
+
+* OR: run postMUT individually on one file
+
+	# Runs postMUT only on Somatic mutations
+		./scripts/postMUT_tumor.R Tumor-Somatic 
+
+	# Runs postMUT on all mutations found in the normal sample
+		./scripts/postMUT_tumor.R Normal-snpeffect_Cleaveland038_normal_recal.raw 
+
+	# Runs postMUT on all mutations found in the tumor sample
+		./scripts/postMUT_tumor.R Tumor-snpeffect_Cleaveland038_tumor_recal.raw 
+
+* All results are found in 'output_files/postMUT_output'.  
+
